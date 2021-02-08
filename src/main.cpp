@@ -6,7 +6,7 @@
 #include <timer2_pulse.h>
 //https://nrf24.github.io/RF24/classRF24.html
 
-//Version 1.0 2021/2/7
+//Version 1.1 2021/2/8
 
 //pin setting//=============================================
 //NRF24L01
@@ -20,7 +20,7 @@
 //Servo
 #define servo_pin 8
 //axis setting
-#define x_axis_center 2000
+#define x_axis_center 1450
 #define y_axis_center 0
 //protection setting
 #define controller_timeout 2000 //(ms)
@@ -46,6 +46,7 @@ void init_nrf24l01(){
   radio.setChannel(120);
   radio.startListening();
   radio.printDetails();
+  delay(3000);
 }
 
 //init motor function//====================================================
@@ -55,7 +56,7 @@ void init_motor(){
   timer2_pulse_attach(servo_pin);
   timer2_pulse_write(servo_pin, x_axis_center);
   Serial.println("init bts7960");
-  TCCR1B |= (1 << CS11);
+  TCCR1B = TCCR1B & 0xF8 | 2;
   main_data.x_axis = x_axis_center;
   main_data.y_axis = y_axis_center;
   pinMode(R_EN_pin,OUTPUT);
@@ -76,6 +77,7 @@ void shutdown_motor(){
   digitalWrite(R_EN_pin,0);
   digitalWrite(L_EN_pin,0);
   timer2_pulse_write(servo_pin, x_axis_center);
+  main_data.x_axis = x_axis_center;
 }
 
 //setup//=================================================================
@@ -98,16 +100,20 @@ void loop() {
     if (radio.available()) {
       last_receive = millis();
       radio.read(&main_data, sizeof(main_data));
+      Serial.print("x_axis ");
+      Serial.println(main_data.x_axis);
+      Serial.print("y_axis ");
+      Serial.println(main_data.y_axis);
       //y
       if(main_data.y_axis >= 0){
-        analogWrite(0,L_PWM_pin);
-        analogWrite(main_data.y_axis,R_PWM_pin);
+        analogWrite(L_PWM_pin, 0);
+        analogWrite(R_PWM_pin, main_data.y_axis);
       }else if(main_data.y_axis <= 0){
-        analogWrite(0,R_PWM_pin);
-        analogWrite(abs(main_data.y_axis),L_PWM_pin);
+        analogWrite(R_PWM_pin, 0);
+        analogWrite(L_PWM_pin, abs(main_data.y_axis));
       }
       //x
-      timer2_pulse_write(servo_pin,main_data.x_axis);
+      //timer2_pulse_write(servo_pin,main_data.x_axis);
     }
 
   //controller reconnect
@@ -121,4 +127,6 @@ void loop() {
   }else{
     shutdown_motor();
   }
+  timer2_pulse_write(servo_pin,main_data.x_axis);
+  delay(20);
 }
